@@ -4,14 +4,15 @@
  let url='',name='',handle='',avatar='',text='',busy=false,saving=false,error='',notice='',canvas,ready=false,dimensions='1200 px wide',renderVersion=0;
  const sample='Good words deserve\na little space.';
  async function draw(){
-  if(!canvas)return;
+  const target=canvas;
+  if(!target)return;
   const version=++renderVersion;ready=false;
   try{
    const buffer=document.createElement('canvas');
    const result=await renderCard(buffer,{text:text||sample,name:name||'Your name',handle:handle||'username',avatar});
    if(version!==renderVersion)return;
-   canvas.width=buffer.width;canvas.height=buffer.height;
-   canvas.getContext('2d').drawImage(buffer,0,0);
+   target.width=buffer.width;target.height=buffer.height;
+   target.getContext('2d').drawImage(buffer,0,0);
    if(result.avatarMissing)notice='Avatar unavailable; using the author’s initial.';
    dimensions=`${result.width} × ${result.height}`;ready=Boolean(text.trim());
   }catch(e){error=e.message;}
