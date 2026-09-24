@@ -22,35 +22,42 @@ export async function renderCard(canvas,{text,name,handle,avatar}){
  text=text.trim();
  const ctx=canvas.getContext('2d');
  const width=1200,padding=96,max=width-padding*2;
- const size=text.length>1200?36:text.length>600?42:48;
- ctx.font=`700 ${size}px Inter`;
- const lines=[];
- for(const paragraph of text.split('\n')){
-  let line='';
-  for(const word of paragraph.split(/(\s+)/)){
-   if(ctx.measureText(line+word).width<=max){line+=word;continue;}
-   if(line.trim())lines.push(line.trimEnd());
-   line=word.trimStart();
-   if(ctx.measureText(line).width>max){
-    let part='';
-    for(const {segment} of new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(line)){
-     if(ctx.measureText(part+segment).width>max){lines.push(part);part='';}
-     part+=segment;
+ const height=1200,textTop=222,bottomPadding=72;
+ function layout(size){
+  ctx.font=`700 ${size}px Inter`;
+  const lines=[];
+  for(const paragraph of text.split('\n')){
+   let line='';
+   for(const word of paragraph.split(/(\s+)/)){
+    if(ctx.measureText(line+word).width<=max){line+=word;continue;}
+    if(line.trim())lines.push(line.trimEnd());
+    line=word.trimStart();
+    if(ctx.measureText(line).width>max){
+     let part='';
+     for(const {segment} of new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(line)){
+      if(part&&ctx.measureText(part+segment).width>max){lines.push(part);part='';}
+      part+=segment;
+     }
+     line=part;
     }
-    line=part;
    }
+   lines.push(line.trimEnd());
   }
-  lines.push(line.trimEnd());
+  const leading=size*1.25;
+  const ascent=Math.max(...lines.map(line=>ctx.measureText(line||'Mg').actualBoundingBoxAscent||size));
+  const descent=ctx.measureText(lines.at(-1)||'Mg').actualBoundingBoxDescent||size*.2;
+  return {lines,leading,ascent,bottom:textTop+ascent+(lines.length-1)*leading+descent};
  }
- const leading=Math.round(size*1.4);
- const textTop=222,bottomPadding=56;
  ctx.textBaseline='alphabetic';
- const lastMetrics=ctx.measureText(lines.at(-1)||' ');
- const ascent=ctx.measureText('Mg').actualBoundingBoxAscent||size;
- const descent=lastMetrics.actualBoundingBoxDescent||0;
- const height=Math.ceil(textTop+ascent+(lines.length-1)*leading+descent+bottomPadding);
- if(height>15000)throw new Error('This post is too long for a single image. Shorten the text and try again.');
- canvas.width=width;canvas.height=height;
+ let low=1,high=180,size=1,fitted=layout(1);
+ while(low<=high){
+  const candidate=Math.floor((low+high)/2),result=layout(candidate);
+  if(result.bottom<=height-bottomPadding){size=candidate;fitted=result;low=candidate+1;}
+  else high=candidate-1;
+ }
+ const {lines,leading,ascent}=fitted;
+ canvas.width=2048;canvas.height=2048;
+ ctx.scale(2048/width,2048/height);
  ctx.fillStyle='#09090b';ctx.fillRect(0,0,width,height);
  ctx.textBaseline='top';
  const avatarY=86,nameX=padding+104;
@@ -73,5 +80,5 @@ export async function renderCard(canvas,{text,name,handle,avatar}){
  ctx.fillStyle='#f5f5f6';ctx.font=`700 ${size}px Inter`;
  ctx.textBaseline='alphabetic';
  lines.forEach((line,i)=>ctx.fillText(line,padding,textTop+ascent+i*leading));
- return {width,height,avatarMissing:Boolean(avatar&&!portrait)};
+ return {width:2048,height:2048,avatarMissing:Boolean(avatar&&!portrait)};
 }
