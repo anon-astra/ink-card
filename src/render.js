@@ -1,7 +1,25 @@
-export async function renderCard(canvas,{text,name,handle}){
+const avatars=new Map();
+function loadAvatar(url){
+ if(!url)return Promise.resolve(null);
+ if(!avatars.has(url)){
+  const pending=new Promise(resolve=>{
+   const image=new Image();image.crossOrigin='anonymous';image.referrerPolicy='no-referrer';
+   const timer=setTimeout(()=>resolve(null),8000);
+   image.onload=()=>{clearTimeout(timer);resolve(image);};
+   image.onerror=()=>{clearTimeout(timer);resolve(null);};image.src=url;
+  });
+  if(avatars.size>=12)avatars.delete(avatars.keys().next().value);
+  avatars.set(url,pending);
+ }
+ return avatars.get(url);
+}
+const bird='M23.953 4.57a10 10 0 0 1-2.825.775 4.958 4.958 0 0 0 2.163-2.723 9.99 9.99 0 0 1-3.127 1.195 4.92 4.92 0 0 0-8.384 4.482A13.98 13.98 0 0 1 1.64 3.162a4.92 4.92 0 0 0 1.523 6.574 4.9 4.9 0 0 1-2.229-.616v.061a4.923 4.923 0 0 0 3.946 4.827 4.93 4.93 0 0 1-2.224.084 4.93 4.93 0 0 0 4.6 3.419 9.87 9.87 0 0 1-6.115 2.107c-.398 0-.79-.023-1.175-.068a13.94 13.94 0 0 0 7.548 2.212c9.057 0 14.01-7.503 14.01-14.01 0-.213-.005-.425-.014-.636a10.013 10.013 0 0 0 2.457-2.548z';
+export async function renderCard(canvas,{text,name,handle,avatar}){
  await document.fonts.load('700 48px Inter');
  await document.fonts.load('400 24px Inter');
  if(!document.fonts.check('700 48px Inter'))throw new Error('Inter could not load. Please refresh and try again.');
+ const portrait=await loadAvatar(avatar);
+ text=text.trim();
  const ctx=canvas.getContext('2d');
  const width=1200,padding=96,max=width-padding*2;
  const size=text.length>1200?36:text.length>600?42:48;
@@ -25,18 +43,35 @@ export async function renderCard(canvas,{text,name,handle}){
   lines.push(line.trimEnd());
  }
  const leading=Math.round(size*1.4);
- const height=Math.max(640,280+lines.length*leading+96);
+ const textTop=222,bottomPadding=56;
+ ctx.textBaseline='alphabetic';
+ const lastMetrics=ctx.measureText(lines.at(-1)||' ');
+ const ascent=ctx.measureText('Mg').actualBoundingBoxAscent||size;
+ const descent=lastMetrics.actualBoundingBoxDescent||0;
+ const height=Math.ceil(textTop+ascent+(lines.length-1)*leading+descent+bottomPadding);
  if(height>15000)throw new Error('This post is too long for a single image. Shorten the text and try again.');
  canvas.width=width;canvas.height=height;
  ctx.fillStyle='#09090b';ctx.fillRect(0,0,width,height);
  ctx.textBaseline='top';
+ const avatarY=86,nameX=padding+104;
+ ctx.save();ctx.beginPath();ctx.arc(padding+40,avatarY+40,40,0,Math.PI*2);ctx.clip();
+ ctx.fillStyle='#29292f';ctx.fillRect(padding,avatarY,80,80);
+ if(portrait){
+  const side=Math.min(portrait.naturalWidth,portrait.naturalHeight);
+  ctx.drawImage(portrait,(portrait.naturalWidth-side)/2,(portrait.naturalHeight-side)/2,side,side,padding,avatarY,80,80);
+ }else{
+  ctx.fillStyle='#b6b6be';ctx.font='700 32px Inter';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(Array.from(name||'?')[0].toUpperCase(),padding+40,avatarY+40);
+ }
+ ctx.restore();
  ctx.fillStyle='#f5f5f6';ctx.font='700 30px Inter';
- ctx.fillText(name||'Author',padding,90,max-90);
+ ctx.fillText(name||'Author',nameX,90,width-padding-90-nameX);
  ctx.fillStyle='#96969f';ctx.font='400 24px Inter';
- ctx.fillText(handle?'@'+handle.replace(/^@/,''):'@username',padding,137,max-90);
- ctx.strokeStyle='#e7e7ec';ctx.lineWidth=3;
- ctx.beginPath();ctx.moveTo(1062,94);ctx.lineTo(1102,143);ctx.moveTo(1102,94);ctx.lineTo(1062,143);ctx.stroke();
+ ctx.fillText(handle?'@'+handle.replace(/^@/,''):'@username',nameX,137,width-padding-90-nameX);
+ ctx.save();ctx.translate(width-padding-52,99);ctx.scale(52/24,52/24);
+ ctx.fillStyle='#f5f5f6';ctx.fill(new Path2D(bird));ctx.restore();
  ctx.fillStyle='#f5f5f6';ctx.font=`700 ${size}px Inter`;
- lines.forEach((line,i)=>ctx.fillText(line,padding,236+i*leading));
- return {width,height};
+ ctx.textBaseline='alphabetic';
+ lines.forEach((line,i)=>ctx.fillText(line,padding,textTop+ascent+i*leading));
+ return {width,height,avatarMissing:Boolean(avatar&&!portrait)};
 }

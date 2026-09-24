@@ -1,18 +1,22 @@
 <script>
  import {onMount,tick} from 'svelte';
  import {renderCard} from './render.js';
- let url='',name='',handle='',text='',busy=false,saving=false,error='',notice='',canvas,ready=false,dimensions='1200 × 640',renderVersion=0;
+ let url='',name='',handle='',avatar='',text='',busy=false,saving=false,error='',notice='',canvas,ready=false,dimensions='1200 px wide',renderVersion=0;
  const sample='Good words deserve\na little space.';
  async function draw(){
   if(!canvas)return;
   const version=++renderVersion;ready=false;
   try{
-   const result=await renderCard(canvas,{text:text||sample,name:name||'Your name',handle:handle||'username'});
+   const buffer=document.createElement('canvas');
+   const result=await renderCard(buffer,{text:text||sample,name:name||'Your name',handle:handle||'username',avatar});
    if(version!==renderVersion)return;
+   canvas.width=buffer.width;canvas.height=buffer.height;
+   canvas.getContext('2d').drawImage(buffer,0,0);
+   if(result.avatarMissing)notice='Avatar unavailable; using the author’s initial.';
    dimensions=`${result.width} × ${result.height}`;ready=Boolean(text.trim());
   }catch(e){error=e.message;}
  }
- $: if(canvas){text;name;handle;draw();}
+ $: if(canvas){text;name;handle;avatar;draw();}
  async function loadPost(value=url){
   if(busy)return;
   busy=true;error='';notice='';
@@ -32,6 +36,7 @@
    if(content.length>5000)throw new Error('This post is too long. Paste a shorter excerpt below.');
    name=typeof post.author?.name==='string'?post.author.name:'';
    handle=typeof post.author?.screen_name==='string'?post.author.screen_name:match[1]||'';
+   avatar=typeof post.author?.avatar_url==='string'?post.author.avatar_url:'';
    text=content;url=value;
    await tick();await draw();notice='Post loaded. Check the text before saving.';
    return {name,handle,text};
